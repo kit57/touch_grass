@@ -18,10 +18,10 @@ def slug(text):
 
 
 def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
-               voice_name=None, out_root="walks", progress=print, engine="piper"):
+               voice_name=None, out_root="walks", progress=print, engine="piper", voice_settings=None):
     """`start` is a dict with lat, lon and optionally label. Returns a summary of what was written."""
     # Fail on a missing voice or key now, not after the script has been written.
-    speak = voice.make_speaker(engine, voice_name)
+    speak = voice.make_speaker(engine, voice_name, settings=voice_settings)
 
     n = max(2, min(8, round(minutes / 8)))
     budget = max(300, (minutes - n * 1.5 - 1) * places.WALK_SPEED)

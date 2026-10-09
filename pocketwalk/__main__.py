@@ -28,9 +28,23 @@ def main():
                    help="piper runs on this computer; elevenlabs is a cloud voice")
     w.add_argument("--voice", help="a Piper voice name or an ElevenLabs voice id")
 
+    w.add_argument("--voice-speed", type=float, help="ElevenLabs only: 0.7 (slow) to 1.2 (fast)")
+    w.add_argument("--voice-stability", type=float,
+                   help="ElevenLabs only: 0 (expressive, varies) to 1 (steady, flatter)")
+    w.add_argument("--voice-style", type=float, help="ElevenLabs only: 0 (neutral) to 1 (exaggerated)")
+
+    sub.add_parser("voices", help="list the ElevenLabs voices your key can use")
+
     args = parser.parse_args()
     if args.command == "serve":
         return serve(args.port, args.lan)
+    if args.command == "voices":
+        try:
+            for v in voice.elevenlabs_voices():
+                print(f"{v['id']}  {v['name']}" + (f"  ({v['about']})" if v["about"] else ""))
+        except RuntimeError as e:
+            sys.exit(str(e))
+        return
 
     if args.place:
         start = places.geocode(args.place)
@@ -38,8 +52,10 @@ def main():
         start = {"lat": args.lat, "lon": args.lon}
     else:
         parser.error("give a place name, or --lat and --lon")
+    settings = {"speed": args.voice_speed, "stability": args.voice_stability, "style": args.voice_style}
     try:
-        result = build_walk(start, args.minutes, args.units, args.model, args.voice, engine=args.voice_engine)
+        result = build_walk(start, args.minutes, args.units, args.model, args.voice,
+                            engine=args.voice_engine, voice_settings=settings)
     except RuntimeError as e:
         sys.exit(str(e))
     print(f"\n{result['title']}: {len(result['stops'])} stops, {result['distance']}, "

@@ -16,16 +16,19 @@ ENGINES = ["piper", "elevenlabs"]
 DEFAULT_VOICE = "en_US-lessac-medium"
 SENTENCE_GAP = 0.35  # seconds of silence between sentences
 
-ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech/"
-ELEVENLABS_VOICE = "JBFqnCBsd6RMkjVDRZzb"  # "George", one of the stock voices
+ELEVENLABS_API = "https://api.elevenlabs.io/v1/"
+# "George", one of the stock voices, unless .env names another.
+ELEVENLABS_VOICE = os.environ.get("ELEVENLABS_VOICE", "JBFqnCBsd6RMkjVDRZzb")
+# What can be tuned, with the range ElevenLabs accepts for each.
+ELEVENLABS_SETTINGS = {"speed": (0.7, 1.2), "stability": (0.0, 1.0), "style": (0.0, 1.0)}
 ELEVENLABS_MODEL = os.environ.get("ELEVENLABS_MODEL", "eleven_multilingual_v2")
 ELEVENLABS_KBPS = 64
 
 
-def make_speaker(engine="piper", voice_name=None, voices_dir="voices"):
-    """Returns a function text -> (mp3_bytes, seconds)."""
+def make_speaker(engine="piper", voice_name=None, voices_dir="voices", settings=None):
+    """Returns a function text -> (mp3_bytes, seconds). `settings` tunes the ElevenLabs voice."""
     if engine == "elevenlabs":
-        return _elevenlabs(voice_name or ELEVENLABS_VOICE)
+        return _elevenlabs(voice_name or ELEVENLABS_VOICE, settings or {})
     return _piper(voice_name or DEFAULT_VOICE, voices_dir)
 
 
@@ -57,15 +60,47 @@ def _piper(name, voices_dir):
     return speak
 
 
-def _elevenlabs(voice_id):
+def _elevenlabs_key():
     key = os.environ.get("ELEVENLABS_API_KEY")
     if not key:
-        raise RuntimeError("Set the ELEVENLABS_API_KEY environment variable to use the ElevenLabs voice.")
+        raise RuntimeError("Put your ELEVENLABS_API_KEY in the .env file to use the ElevenLabs voice.")
+    return key
+
+
+def elevenlabs_voices():
+    """The voices available to your ElevenLabs account, as a list of {id, name, about}."""
+    req = urllib.request.Request(ELEVENLABS_API + "voices", headers={"xi-api-key": _elevenlabs_key()})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            voices = json.load(r)["voices"]
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"ElevenLabs would not list voices ({e.code}). Check your API key.") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError("Could not reach ElevenLabs.") from e
+    out = []
+    for v in voices:
+        labels = v.get("labels") or {}
+        about = ", ".join(labels[k] for k in ("gender", "accent", "descriptive", "description") if labels.get(k))
+        out.append({"id": v["voice_id"], "name": v["name"], "about": about})
+    return sorted(out, key=lambda v: v["name"].lower())
+
+
+def _elevenlabs(voice_id, settings):
+    key = _elevenlabs_key()
+    body = {"model_id": ELEVENLABS_MODEL}
+    # Only send what was asked for, clamped to the allowed range; the rest keeps the voice's own defaults.
+    tuned = {
+        name: max(low, min(high, float(settings[name])))
+        for name, (low, high) in ELEVENLABS_SETTINGS.items()
+        if settings.get(name) is not None
+    }
+    if tuned:
+        body["voice_settings"] = tuned
 
     def speak(text):
         req = urllib.request.Request(
-            f"{ELEVENLABS_URL}{voice_id}?output_format=mp3_44100_{ELEVENLABS_KBPS}",
-            data=json.dumps({"text": text, "model_id": ELEVENLABS_MODEL}).encode(),
+            f"{ELEVENLABS_API}text-to-speech/{voice_id}?output_format=mp3_44100_{ELEVENLABS_KBPS}",
+            data=json.dumps({**body, "text": text}).encode(),
             headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg"},
         )
         try:

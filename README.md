@@ -67,7 +67,9 @@ also just copy the MP3s over.
 - **A cloud voice:** `--voice-engine elevenlabs` (or the Voice menu on the page) records with
   [ElevenLabs](https://elevenlabs.io) instead. Set `ELEVENLABS_API_KEY` first. It sounds more
   natural and handles names in other languages, but it sends the script to their servers and
-  uses credits, so Piper stays the default.
+  uses credits, so Piper stays the default. `python -m pocketwalk voices` lists the voices
+  your key can use; pick one with `--voice <id>` and tune it with `--voice-speed`,
+  `--voice-stability` and `--voice-style`. The page has the same choices as a menu and sliders.
 - **Another tone:** the whole personality of the guide is the `SYSTEM` prompt in
   [pocketwalk/script.py](pocketwalk/script.py).
 - **Miles and feet:** `--units imperial`.

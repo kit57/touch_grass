@@ -8,7 +8,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import places
+from . import places, voice
 from .build import build_walk
 
 INDEX = Path(__file__).with_name("index.html")
@@ -31,6 +31,8 @@ def run_job(job_id, params):
                 units="imperial" if params.get("units") == "imperial" else "metric",
                 out_root=WALKS,
                 engine="elevenlabs" if params.get("engine") == "elevenlabs" else "piper",
+                voice_name=str(params["voice"]) if params.get("voice") else None,
+                voice_settings={k: params.get(k) for k in voice.ELEVENLABS_SETTINGS},
                 progress=lambda msg: job.update(status=msg),
             )
         job["state"] = "done"
@@ -63,6 +65,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(INDEX.read_bytes(), "text/html; charset=utf-8")
         if path == "/api/walks":
             return self.send(list_walks())
+        if path == "/api/voices":
+            try:
+                return self.send({"voices": voice.elevenlabs_voices(), "default": voice.ELEVENLABS_VOICE})
+            except RuntimeError as e:
+                return self.send({"error": str(e)})
         if path.startswith("/api/jobs/"):
             job = jobs.get(path.rsplit("/", 1)[1])
             return self.send(job or {"state": "error", "status": "Unknown job"}, status=200 if job else 404)
