@@ -2,9 +2,9 @@
 
 A narrated walk around wherever you are, written and voiced on your own computer.
 
-Tell it where you're starting and how long you have. It finds parks, monuments, old trees and
-artworks nearby, plans a loop, writes a short story for each stop, and records the whole thing
-as audio. Then you put your earbuds in, your phone in your pocket, and go outside. One tap
+Tell it where you're starting and how long you have. It finds monuments, historic buildings,
+parks and artworks nearby, plans a loop, writes the history of each stop as a short story, and
+records the whole thing as audio, in English, Spanish, French, German or Italian. Then you put your earbuds in, your phone in your pocket, and go outside. One tap
 starts the walk; after that the screen is done.
 
 Built for the Hacktoberfest Open-Source AI Challenge, week 1: *Touch Grass*.
@@ -20,7 +20,9 @@ Built for the Hacktoberfest Open-Source AI Challenge, week 1: *Touch Grass*.
 
 Walking directions are written by plain code from the route data, never by the model, so the
 model cannot invent a turn. The model is told to use only the facts it is handed (map tags and
-the Wikipedia intro) and to describe what you can see when there are few.
+the place's Wikipedia article) and to lead with history and people: who made the place, when,
+why, and what happened there. When it has few facts it is told to say less, not to fill the
+gap with atmosphere.
 
 Each stop is its own track. When a track ends, the player cues up the next one and waits.
 You walk in silence, and press play on your earbuds when you arrive.
@@ -79,10 +81,21 @@ are on the same Wi-Fi. Open the walk and leave the tab open (or use the browser'
 button); the audio is inside the page, so it keeps working once you're out of range. You can
 also just copy the MP3s over.
 
+## Languages
+
+Choose **Language of the guide** on the page, or pass `--lang en|es|fr|de|it`. The whole walk
+follows: the model writes the stories in that language, the directions come from hand-written
+templates in [pocketwalk/lang.py](pocketwalk/lang.py), place names use the map's name in that
+language where it has one, and the Wikipedia article in that language is used when it exists.
+
+Both voices follow too. Piper switches to a voice for that language (downloaded on first use,
+about 60 MB each), and the ElevenLabs multilingual model speaks whatever language the script
+is in. To add a language, copy one block in `lang.py`, translate it, and name a Piper voice.
+
 ## Make it yours
 
 - **Another model:** `--model <anything in ollama list>`, or set `POCKETWALK_MODEL`.
-- **Another voice or language:** `--voice de_DE-thorsten-medium` (any
+- **Another voice:** `--voice en_GB-alan-medium` (any
   [Piper voice](https://huggingface.co/rhasspy/piper-voices)).
 - **Another tone:** the whole personality of the guide is the `SYSTEM` prompt in
   [pocketwalk/script.py](pocketwalk/script.py).
@@ -132,10 +145,12 @@ From the terminal:
 - Making a walk needs the internet once, to fetch map data, and those lookups send your start
   point to OpenStreetMap and Wikipedia servers. The model, the voice and the finished walk stay
   on your machine, and the walk itself needs no connection.
-- A 4B model sometimes blurs a detail from its source text. Treat the stories as a friendly
-  guide, not a reference.
-- The default voice is English and will mangle names in other languages; pick a matching
-  Piper voice, or use the ElevenLabs option.
+- A 4B model sometimes gets a detail from its source text wrong, such as a date or a name.
+  Treat the stories as a friendly guide, not a reference.
+- A Piper voice reads everything in its own language, so foreign place names can come out
+  oddly (a Spanish street read by the English voice). Pick the walk's language to match the
+  place, or use the ElevenLabs option.
+- The player's own buttons and hints are in English whatever the walk's language.
 - The player doesn't know where you are. You tell it you've arrived by pressing play.
 - Directions describe the first few turns of each leg. On a twisty leg, the route sketch in
   the player or the GPX file has the rest.
