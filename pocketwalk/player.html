@@ -127,6 +127,8 @@ if ("mediaSession" in navigator) {
 // plays, sets off when the directions begin, and reaches the next stop as that stop's track starts.
 let pts = [], cum = [], anchors = [];
 const leave = WALK.tracks.map(t => {
+  if (t.leave != null) return t.leave;
+  // Walks made before the split was stored: find where the English directions begin.
   const i = t.text.search(/Here's the way to your first stop|When you're ready, here's the way/);
   return i < 0 ? 1 : i / t.text.length;
 });

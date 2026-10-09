@@ -8,8 +8,8 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from . import places, script, voice
+from .lang import LANGS
 
-PRESS_PLAY = " Press play when you get there."
 TEMPLATE = Path(__file__).with_name("player.html")
 
 
@@ -18,8 +18,12 @@ def slug(text):
 
 
 def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
-               voice_name=None, out_root="walks", progress=print, engine="piper", voice_settings=None):
+               voice_name=None, out_root="walks", progress=print, engine="piper", voice_settings=None,
+               lang="en"):
     """`start` is a dict with lat, lon and optionally label. Returns a summary of what was written."""
+    L = LANGS[lang]
+    if engine == "piper" and not voice_name:
+        voice_name = L["piper"]
     # Fail on a missing voice or key now, not after the script has been written.
     speak = voice.make_speaker(engine, voice_name, settings=voice_settings)
 
@@ -28,7 +32,7 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
     radius = max(300, min(2000, budget / 2.5))
 
     progress("Looking for places nearby")
-    found = places.find_places(start, radius)
+    found = places.find_places(start, radius, lang)
     stops = places.plan_stops(start, found, n, budget)
     if not stops:
         raise RuntimeError(
@@ -37,7 +41,7 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
         )
 
     progress("Planning the route")
-    home = {**start, "name": "your starting point"}
+    home = {**start, "name": L["home"]}
     while True:
         points = [home] + stops + [home]
         legs, coords = places.route(points)
@@ -51,31 +55,34 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
             return detour / stops[i]["score"]
         stops.pop(max(range(len(stops)), key=cost))
 
-    area = start.get("label") or places.reverse_geocode(start["lat"], start["lon"])
-    season_name = script.season(start["lat"], datetime.date.today().month)
-    directions = [places.describe_leg(leg, a, b, units) for leg, a, b in zip(legs, points, points[1:])]
+    area = start.get("label") or places.reverse_geocode(start["lat"], start["lon"]) or L["area"]
+    directions = [places.describe_leg(leg, a, b, units, L) for leg, a, b in zip(legs, points, points[1:])]
+
+    # Each track is the story followed by the way onward. `leave` is how far through the text
+    # the story ends, which the player's preview uses to time the dot setting off.
+    def track(title, story, onward=""):
+        return {"title": title, "text": story + onward, "leave": round(len(story) / len(story + onward), 3)}
 
     progress(f"Writing the welcome with {model}")
     if legs[0]["distance"] < 40:
-        first = " Your first stop is right where you're standing. Press play when you're ready."
+        onward = L["first_here"]
     else:
-        first = " Here's the way to your first stop. " + directions[0] + PRESS_PLAY
-    tracks = [{"title": "Welcome", "text": script.intro(area, stops, minutes, season_name, model) + first}]
+        onward = L["first_way"] + directions[0] + L["press"]
+    tracks = [track(L["welcome"], script.intro(area, stops, minutes, L, model), onward)]
     for k, place in enumerate(stops, 1):
         progress(f"Writing stop {k} of {len(stops)}: {place['name']}")
         place["facts"] = places.facts(place["tags"])
-        text = f"Stop {k}. {place['name']}. "
-        text += script.stop(place, k, len(stops), season_name, places.wikipedia_extract(place["tags"]), model)
+        story = L["stop"].format(k=k, name=place["name"])
+        story += script.stop(place, k, len(stops), places.wikipedia_extract(place["tags"], lang), L, model)
         if k < len(stops):
-            text += f" When you're ready, here's the way to stop {k + 1}. " + directions[k] + PRESS_PLAY
+            onward = L["next_way"].format(k=k + 1) + directions[k] + L["press"]
         elif legs[k]["distance"] < 40:
-            text += " That brings you back to where you started. Press play for a short goodbye."
+            onward = L["back_here"]
         else:
-            text += (" When you're ready, here's the way back. " + directions[k]
-                     + " Press play when you're back for a short goodbye.")
-        tracks.append({"title": place["name"], "text": text})
+            onward = L["back_way"] + directions[k] + L["back_press"]
+        tracks.append(track(place["name"], story, onward))
     progress("Writing the goodbye")
-    tracks.append({"title": "Welcome back", "text": script.outro(area, stops, model)})
+    tracks.append(track(L["goodbye"], script.outro(area, stops, L, model)))
 
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M")
     out = Path(out_root) / f"{stamp}-{slug(area)}-{minutes}min"
@@ -91,10 +98,11 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
         audio.append(base64.b64encode(mp3).decode())
 
     walk = {
-        "title": f"{area}: a {minutes}-minute walk",
+        "title": L["title"].format(area=area, minutes=minutes),
+        "lang": lang,
         "area": area,
         "minutes": minutes,
-        "distance": places.fmt_distance(total, units),
+        "distance": places.fmt_distance(total, units, L),
         "model": model,
         "voice": f"{engine}: {voice_name or 'default'}",
         "start": {"lat": start["lat"], "lon": start["lon"]},

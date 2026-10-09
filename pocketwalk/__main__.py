@@ -6,6 +6,7 @@ import sys
 
 from . import places, script, voice
 from .build import build_walk
+from .lang import LANGS
 from .server import serve
 
 
@@ -24,9 +25,11 @@ def main():
     w.add_argument("--minutes", type=int, default=30)
     w.add_argument("--units", choices=["metric", "imperial"], default="metric")
     w.add_argument("--model", default=script.DEFAULT_MODEL, help="any model you have pulled in Ollama")
+    w.add_argument("--lang", choices=list(LANGS), default="en",
+                   help="language of the narration: " + ", ".join(f"{k} ({v['name']})" for k, v in LANGS.items()))
     w.add_argument("--voice-engine", choices=voice.ENGINES, default="piper",
                    help="piper runs on this computer; elevenlabs is a cloud voice")
-    w.add_argument("--voice", help="a Piper voice name or an ElevenLabs voice id")
+    w.add_argument("--voice", help="a Piper voice name or an ElevenLabs voice id (default: one that suits --lang)")
 
     w.add_argument("--voice-speed", type=float, help="ElevenLabs only: 0.7 (slow) to 1.2 (fast)")
     w.add_argument("--voice-stability", type=float,
@@ -55,7 +58,7 @@ def main():
     settings = {"speed": args.voice_speed, "stability": args.voice_stability, "style": args.voice_style}
     try:
         result = build_walk(start, args.minutes, args.units, args.model, args.voice,
-                            engine=args.voice_engine, voice_settings=settings)
+                            engine=args.voice_engine, voice_settings=settings, lang=args.lang)
     except RuntimeError as e:
         sys.exit(str(e))
     print(f"\n{result['title']}: {len(result['stops'])} stops, {result['distance']}, "

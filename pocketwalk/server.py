@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import places, voice
 from .build import build_walk
+from .lang import LANGS
 
 INDEX = Path(__file__).with_name("index.html")
 WALKS = Path("walks")
@@ -30,6 +31,7 @@ def run_job(job_id, params):
                 minutes=max(10, min(120, int(params.get("minutes", 30)))),
                 units="imperial" if params.get("units") == "imperial" else "metric",
                 out_root=WALKS,
+                lang=params["lang"] if params.get("lang") in LANGS else "en",
                 engine="elevenlabs" if params.get("engine") == "elevenlabs" else "piper",
                 voice_name=str(params["voice"]) if params.get("voice") else None,
                 voice_settings={k: params.get(k) for k in voice.ELEVENLABS_SETTINGS},

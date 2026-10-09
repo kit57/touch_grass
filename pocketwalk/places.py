@@ -7,6 +7,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .lang import LANGS
+
 UA = "pocket-walk-narrator/0.1 (open-source hackathon project)"
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
@@ -54,9 +56,8 @@ def bearing(a, b):
     return math.degrees(math.atan2(y, x)) % 360
 
 
-def compass(deg):
-    names = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
-    return names[round(deg / 45) % 8]
+def compass(deg, L):
+    return L["dirs"][round(deg / 45) % 8]
 
 
 def geocode(query):
@@ -82,7 +83,7 @@ def reverse_geocode(lat, lon):
                 return a[key]
     except (urllib.error.URLError, TimeoutError, ValueError):
         pass
-    return "your neighbourhood"
+    return ""
 
 
 def _kind(tags):
@@ -99,11 +100,12 @@ def _score(tags):
     s += 2 if "wikidata" in tags else 0
     s += sum(1 for k in FACT_TAGS if k in tags)
     s += 2 if _kind(tags).replace(" ", "_") in OUTDOORSY else 0
+    s += 2 if "historic" in tags or "heritage" in tags or "start_date" in tags else 0
     return s
 
 
-def find_places(start, radius):
-    """Named points of interest within `radius` metres, best first."""
+def find_places(start, radius, lang="en"):
+    """Named points of interest within `radius` metres, best first, named in `lang` where the map has it."""
     around = f"(around:{int(radius)},{start['lat']},{start['lon']})"
     query = f"""[out:json][timeout:40];
 (
@@ -131,7 +133,7 @@ out center tags 800;"""
     for el in elements:
         tags = el.get("tags", {})
         pos = el if "lat" in el else el.get("center")
-        name = tags.get("name:en") or tags.get("name")
+        name = tags.get(f"name:{lang}") or tags.get("name")
         if not pos or not name or name.lower() in seen:
             continue
         place = {"name": name, "lat": pos["lat"], "lon": pos["lon"], "kind": _kind(tags), "tags": tags}
@@ -176,28 +178,33 @@ def route(points):
         return legs, [[p["lon"], p["lat"]] for p in points]
 
 
-def fmt_distance(m, units="metric"):
+def fmt_distance(m, units="metric", L=LANGS["en"]):
+    def decimal(x):
+        return f"{x:.1f}".replace(".", L["dec"])
+
     if units == "imperial":
         if m < 300:
-            return f"{max(50, round(m * 3.281 / 50) * 50)} feet"
-        return f"{m / 1609.34:.1f} miles"
+            return f"{max(50, round(m * 3.281 / 50) * 50)} {L['ft']}"
+        return f"{decimal(m / 1609.34)} {L['mi']}"
     if m < 1000:
-        return f"{max(10, round(m / 10) * 10)} metres"
-    return f"{m / 1000:.1f} kilometres"
+        return f"{max(10, round(m / 10) * 10)} {L['m']}"
+    return f"{decimal(m / 1000)} {L['km']}"
 
 
-def describe_leg(leg, a, b, units="metric", max_turns=4):
+def describe_leg(leg, a, b, units="metric", L=LANGS["en"], max_turns=4):
     """Spoken directions from a to b. Written by code, not the model, so they can't be invented."""
-    minutes = max(1, round(leg["distance"] / WALK_SPEED))
-    name = b["name"][0].upper() + b["name"][1:]
-    text = (
-        f"{name} is about {fmt_distance(leg['distance'], units)} away, to the {compass(bearing(a, b))}. "
-        f"That's roughly {minutes} minute{'s' if minutes != 1 else ''} on foot."
+    n = max(1, round(leg["distance"] / WALK_SPEED))
+    text = L["away"].format(
+        name=b["name"],
+        dist=fmt_distance(leg["distance"], units, L),
+        dir=compass(bearing(a, b), L),
+        min=L["minute"] if n == 1 else L["minutes"].format(n=n),
     )
+    text = text[0].upper() + text[1:]
     turns = []
     for step in leg.get("steps", []):
         man = step["maneuver"]
-        way = step.get("name") or "the path"
+        way = step.get("name") or L["path"]
         mod = man.get("modifier", "")
         if man["type"] == "arrive":
             continue
@@ -207,33 +214,33 @@ def describe_leg(leg, a, b, units="metric", max_turns=4):
                 turns[-1][2] += step["distance"]
             continue
         if not turns:
-            action = f"head {compass(man.get('bearing_after', 0))} on {way}"
+            action = L["head"].format(dir=compass(man.get("bearing_after", 0), L), way=way)
         elif mod == "uturn":
-            action = "turn around"
-        elif mod.startswith("slight"):
-            action = f"bear {mod.split()[1]} onto {way}"
-        elif mod.startswith("sharp"):
-            action = f"turn sharply {mod.split()[1]} onto {way}"
-        elif mod in ("left", "right"):
-            action = f"turn {mod} onto {way}"
-        elif turns and turns[-1][1] == way:
+            action = L["uturn"]
+        elif mod in L["turns"]:
+            action = L["turns"][mod].format(way=way)
+        elif turns[-1][1] == way:
             # Still the same street going straight: fold it into the previous instruction.
             turns[-1][2] += step["distance"]
             continue
         else:
-            action = f"continue onto {way}"
+            action = L["straight"].format(way=way)
         turns.append([action, way, step["distance"]])
     if turns:
-        said = [f"{action} for about {fmt_distance(d, units)}" for action, _, d in turns[:max_turns]]
+        said = [L["for"].format(action=action, dist=fmt_distance(d, units, L)) for action, _, d in turns[:max_turns]]
         said[0] = said[0][0].upper() + said[0][1:]
-        text += " " + ", then ".join(said) + "."
+        text += " " + L["then"].join(said) + "."
         if len(turns) > max_turns:
-            text += f" From there, keep heading towards {b['name']}; the map on your phone has the rest."
+            text += L["more"].format(name=b["name"])
     return text
 
 
-def wikipedia_extract(tags, limit=1500):
-    """Intro paragraph of the place's Wikipedia article, if OpenStreetMap links to one."""
+def _wiki(lang, params):
+    return get_json(f"https://{lang}.wikipedia.org/w/api.php", {"action": "query", "format": "json", **params})
+
+
+def wikipedia_extract(tags, want="en", limit=3000):
+    """The start of the place's Wikipedia article, in the walk's language when there is one."""
     try:
         lang, title = None, None
         if ":" in tags.get("wikipedia", ""):
@@ -242,17 +249,20 @@ def wikipedia_extract(tags, limit=1500):
             r = get_json(
                 "https://www.wikidata.org/w/api.php",
                 {"action": "wbgetentities", "ids": tags["wikidata"], "props": "sitelinks",
-                 "sitefilter": "enwiki", "format": "json"},
+                 "sitefilter": f"{want}wiki|enwiki", "format": "json"},
             )
-            title = r["entities"][tags["wikidata"]]["sitelinks"]["enwiki"]["title"]
-            lang = "en"
+            links = r["entities"][tags["wikidata"]]["sitelinks"]
+            lang = want if f"{want}wiki" in links else "en"
+            title = links[f"{lang}wiki"]["title"]
         if not title:
             return ""
-        r = get_json(
-            f"https://{lang}.wikipedia.org/w/api.php",
-            {"action": "query", "prop": "extracts", "exintro": 1, "explaintext": 1,
-             "redirects": 1, "titles": title, "format": "json"},
-        )
+        if lang != want:
+            # The map usually links the local-language article; look for the listener's version.
+            r = _wiki(lang, {"prop": "langlinks", "lllang": want, "redirects": 1, "titles": title})
+            links = next(iter(r["query"]["pages"].values())).get("langlinks")
+            if links:
+                lang, title = want, links[0]["*"]
+        r = _wiki(lang, {"prop": "extracts", "explaintext": 1, "redirects": 1, "titles": title})
         page = next(iter(r["query"]["pages"].values()))
         return page.get("extract", "").strip()[:limit]
     except (urllib.error.URLError, TimeoutError, ValueError, KeyError, StopIteration):
