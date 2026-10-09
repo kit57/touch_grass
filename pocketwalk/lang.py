@@ -8,6 +8,7 @@ here by hand rather than left to the model. To add a language, copy a block and 
 LANGS = {
     "en": {
         "name": "English",
+        "sample": "Stop one. This fountain has stood here since 1873, and it has quite a story to tell.",
         "address": '',
         "piper": "en_US-lessac-medium",
         "dirs": ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"],
@@ -38,6 +39,7 @@ LANGS = {
     },
     "es": {
         "name": "Spanish",
+        "sample": "Parada uno. Esta fuente lleva aquí desde 1873 y tiene toda una historia que contar.",
         "address": ' Address the listener informally as "tú", never "usted" or "vosotros".',
         "piper": "es_ES-davefx-medium",
         "dirs": ["el norte", "el noreste", "el este", "el sureste", "el sur", "el suroeste", "el oeste",
@@ -71,6 +73,7 @@ LANGS = {
     },
     "fr": {
         "name": "French",
+        "sample": "Arrêt un. Cette fontaine se dresse ici depuis 1873, et elle a toute une histoire à raconter.",
         "address": ' Address the listener as "vous".',
         "piper": "fr_FR-siwis-medium",
         "dirs": ["le nord", "le nord-est", "l'est", "le sud-est", "le sud", "le sud-ouest", "l'ouest",
@@ -104,6 +107,7 @@ LANGS = {
     },
     "de": {
         "name": "German",
+        "sample": "Halt eins. Dieser Brunnen steht seit 1873 hier und hat eine ganze Geschichte zu erzählen.",
         "address": ' Address the listener formally as "Sie".',
         "piper": "de_DE-thorsten-medium",
         "dirs": ["Norden", "Nordosten", "Osten", "Südosten", "Süden", "Südwesten", "Westen", "Nordwesten"],
@@ -137,6 +141,7 @@ LANGS = {
     },
     "it": {
         "name": "Italian",
+        "sample": "Tappa uno. Questa fontana è qui dal 1873 e ha tutta una storia da raccontare.",
         "address": ' Address the listener informally as "tu".',
         "piper": "it_IT-paola-medium",
         "dirs": ["nord", "nord-est", "est", "sud-est", "sud", "sud-ovest", "ovest", "nord-ovest"],

@@ -117,7 +117,9 @@ to their servers and each walk uses credits (about 5,000 characters for 30 minut
    - set **Pace** (0.7 to 1.2), **Steadiness** (lower is more expressive) and **Drama**
 
    A slider you leave alone keeps that voice's own setting, and your voice choice is
-   remembered.
+   remembered. Once you move a slider, **Listen** speaks one sentence with your settings, in
+   the walk's language, so you can hear the change (about 85 characters of credit per new
+   combination; replaying one is free).
 
 From the terminal:
 

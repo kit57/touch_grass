@@ -86,12 +86,25 @@ class Handler(BaseHTTPRequestHandler):
         self.send({"error": "Not found"}, status=404)
 
     def do_POST(self):
-        if self.path != "/api/walks" or self.headers.get("Content-Type") != "application/json":
+        if self.path not in ("/api/walks", "/api/sample") or self.headers.get("Content-Type") != "application/json":
             return self.send({"error": "Not found"}, status=404)
         try:
             params = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         except ValueError:
             return self.send({"error": "Bad request"}, status=400)
+        if self.path == "/api/sample":
+            # One short sentence in the tuned ElevenLabs voice. Unlike the stock preview clips,
+            # this is generated, so it uses a little credit.
+            L = LANGS[params["lang"] if params.get("lang") in LANGS else "en"]
+            try:
+                speak = voice.make_speaker(
+                    "elevenlabs",
+                    str(params["voice"]) if params.get("voice") else None,
+                    settings={k: params.get(k) for k in voice.ELEVENLABS_SETTINGS},
+                )
+                return self.send(speak(L["sample"])[0], "audio/mpeg")
+            except (RuntimeError, ValueError, TypeError) as e:
+                return self.send({"error": str(e)}, status=502)
         job_id = uuid.uuid4().hex[:12]
         jobs[job_id] = {"state": "running", "status": "Waiting for the previous walk to finish"}
         threading.Thread(target=run_job, args=(job_id, params), daemon=True).start()

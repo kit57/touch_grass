@@ -92,6 +92,7 @@
         <div><select id="voice"><option value="">Loading your voices…</option></select></div>
         <button type="button" class="listen" id="listen" disabled>Listen</button>
       </div>
+      <small id="listenNote">Listen plays the voice's free sample.</small>
       <label for="speed">Pace <output id="speedOut"></output></label>
       <input type="range" id="speed" min="0.7" max="1.2" step="0.05" value="1">
       <label for="stability">Steadiness <output id="stabilityOut"></output></label>
@@ -162,16 +163,41 @@ let voicesLoaded = false;
 const previews = {};
 const sample = new Audio();
 
-// Plays ElevenLabs' own sample of the chosen voice, which costs no credits.
+// With the sliders untouched, Listen plays ElevenLabs' own sample of the voice, which is free.
+// Once a slider has been moved, it asks for one short sentence spoken with those settings,
+// which uses a little credit; each combination is kept so replaying it costs nothing more.
+const tuned = {};
+
+async function sampleUrl() {
+  const choice = voiceChoice();
+  if (!SLIDERS.some(id => id in choice)) return previews[choice.voice];
+  const body = JSON.stringify({ ...choice, lang: $("lang").value });
+  if (!tuned[body]) {
+    $("listen").textContent = "Making…";
+    const res = await fetch("/api/sample", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    if (!res.ok) throw new Error((await res.json()).error || "Couldn't make that sample.");
+    tuned[body] = URL.createObjectURL(await res.blob());
+  }
+  return tuned[body];
+}
+
 function stopSample() {
   sample.pause();
   $("listen").textContent = "Listen";
 }
-$("listen").addEventListener("click", () => {
+$("listen").addEventListener("click", async () => {
   if (!sample.paused) return stopSample();
-  sample.src = previews[$("voice").value];
-  sample.play().then(() => { $("listen").textContent = "Stop"; })
-    .catch(() => say("Couldn't play that sample.", true));
+  $("listen").disabled = true;
+  try {
+    sample.src = await sampleUrl();
+    await sample.play();
+    $("listen").textContent = "Stop";
+    say("");
+  } catch (err) {
+    stopSample();
+    say(err.message || "Couldn't play that sample.", true);
+  }
+  $("listen").disabled = false;
 });
 sample.addEventListener("ended", stopSample);
 $("voice").addEventListener("change", () => {
@@ -193,6 +219,9 @@ SLIDERS.forEach(id => {
   $(id + "Out").textContent = "(voice default)";
   $(id).addEventListener("input", () => {
     touched.add(id);
+    stopSample();
+    $("listen").disabled = false;
+    $("listenNote").textContent = "Listen now speaks one sentence with your settings (uses a little credit).";
     $(id + "Out").textContent = (+$(id).value).toFixed(2);
   });
 });
