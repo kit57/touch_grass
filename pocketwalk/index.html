@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Walk</title>
+<style>
+  :root { --bg: #f6f8f1; --fg: #1a2114; --dim: #5d6853; --accent: #3f7d12; --line: #d9dfcf; --field: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #10140f; --fg: #eef2e6; --dim: #9aa38f; --accent: #8fd14f; --line: #2a3226; --field: #181d16; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.5 system-ui, sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  h2 { font-size: 1rem; margin: 32px 0 8px; color: var(--dim); font-weight: 600; }
+  p { margin: 4px 0 20px; color: var(--dim); }
+  label { display: block; font-weight: 600; margin: 16px 0 6px; }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], select {
+    width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field);
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button.link { background: none; border: 0; padding: 6px 0; color: var(--accent); cursor: pointer; }
+  button.main {
+    width: 100%; margin-top: 24px; padding: 16px; border: 0; border-radius: 14px;
+    background: var(--accent); color: var(--bg); font-weight: 600; font-size: 1.1rem; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { min-height: 1.5em; margin-top: 16px; color: var(--fg); }
+  #status.error { color: #c0392b; }
+  ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  li small { display: block; color: var(--dim); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pocket Walk</h1>
+  <p>A narrated walk around wherever you are, written and voiced on this computer. Make it here, then leave the screen behind.</p>
+
+  <form id="form">
+    <label for="place">Where do you start?</label>
+    <input type="text" id="place" placeholder="An address, park or landmark" autocomplete="off">
+    <button type="button" class="link" id="locate">Use this computer's location</button>
+
+    <div class="row">
+      <div>
+        <label for="minutes">How long?</label>
+        <select id="minutes">
+          <option value="15">15 minutes</option>
+          <option value="30" selected>30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="90">1.5 hours</option>
+        </select>
+      </div>
+      <div>
+        <label for="units">Distances in</label>
+        <select id="units">
+          <option value="metric">metres</option>
+          <option value="imperial">feet and miles</option>
+        </select>
+      </div>
+    </div>
+    <button class="main" id="make">Make my walk</button>
+  </form>
+  <div id="status" role="status"></div>
+
+  <h2>Your walks</h2>
+  <ul id="walks"></ul>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let coords = null;
+
+function say(text, error) {
+  $("status").textContent = text;
+  $("status").className = error ? "error" : "";
+}
+
+$("locate").addEventListener("click", () => {
+  say("Asking the browser where you are…");
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      $("place").value = "";
+      $("place").placeholder = `Using ${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`;
+      say("");
+    },
+    () => say("The browser wouldn't share a location. Type a place instead.", true)
+  );
+});
+$("place").addEventListener("input", () => { coords = null; });
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const place = $("place").value.trim();
+  if (!place && !coords) return say("Type a starting place first.", true);
+  $("make").disabled = true;
+  say("Starting…");
+  const body = { minutes: +$("minutes").value, units: $("units").value, ...(place ? { place } : coords) };
+  try {
+    const res = await fetch("/api/walks", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const { job } = await res.json();
+    while (true) {
+      await new Promise(r => setTimeout(r, 1000));
+      const j = await (await fetch("/api/jobs/" + job)).json();
+      if (j.state === "running") { say(j.status + "…"); continue; }
+      if (j.state === "error") say(j.status, true);
+      else say(`Ready: ${j.result.stops.length} stops, ${j.result.distance}, ${j.result.audio_minutes} minutes of audio.`);
+      break;
+    }
+  } catch (err) {
+    say("Lost contact with the Pocket Walk server.", true);
+  }
+  $("make").disabled = false;
+  refresh();
+});
+
+async function refresh() {
+  const walks = await (await fetch("/api/walks")).json();
+  $("walks").replaceChildren(...walks.map(w => {
+    const li = document.createElement("li"), a = document.createElement("a"), s = document.createElement("small");
+    a.href = `/walks/${w.id}/walk.html`;
+    a.textContent = w.title;
+    s.textContent = `${w.distance} · ${w.stops.join(", ")}`;
+    li.append(a, s);
+    return li;
+  }));
+  if (!walks.length) $("walks").innerHTML = "<li><small>None yet.</small></li>";
+}
+refresh();
+</script>
+</body>
+</html>
