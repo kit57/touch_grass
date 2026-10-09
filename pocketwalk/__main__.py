@@ -23,6 +23,7 @@ def main():
     w.add_argument("--lat", type=float)
     w.add_argument("--lon", type=float)
     w.add_argument("--minutes", type=int, default=30)
+    w.add_argument("--stops", type=int, help="how many stops to aim for (default: about one per 8 minutes)")
     w.add_argument("--units", choices=["metric", "imperial"], default="metric")
     w.add_argument("--model", default=script.DEFAULT_MODEL, help="any model you have pulled in Ollama")
     w.add_argument("--lang", choices=list(LANGS), default="en",
@@ -58,9 +59,12 @@ def main():
     settings = {"speed": args.voice_speed, "stability": args.voice_stability, "style": args.voice_style}
     try:
         result = build_walk(start, args.minutes, args.units, args.model, args.voice,
-                            engine=args.voice_engine, voice_settings=settings, lang=args.lang)
+                            engine=args.voice_engine, voice_settings=settings, lang=args.lang, stops_wanted=args.stops)
     except RuntimeError as e:
         sys.exit(str(e))
+    if result["stops_wanted"] and len(result["stops"]) < result["stops_wanted"]:
+        print(f"\nOnly {len(result['stops'])} of the {result['stops_wanted']} stops you asked for fit in "
+              f"{args.minutes} minutes here. A longer walk makes room for more.")
     print(f"\n{result['title']}: {len(result['stops'])} stops, {result['distance']}, "
           f"{result['audio_minutes']} min of audio")
     print(f"Open {result['dir']}\\walk.html")

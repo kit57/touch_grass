@@ -99,6 +99,9 @@ is in. To add a language, copy one block in `lang.py`, translate it, and name a 
   [Piper voice](https://huggingface.co/rhasspy/piper-voices)).
 - **Another tone:** the whole personality of the guide is the `SYSTEM` prompt in
   [pocketwalk/script.py](pocketwalk/script.py).
+- **Number of stops:** `--stops 5`, or the **How many stops?** menu on the page (1 to 10). Left
+  alone, a walk gets about one stop per 8 minutes. If that many don't fit in the time, or the
+  map has too few places nearby, you get fewer and are told so.
 - **Miles and feet:** `--units imperial`.
 
 ## Optional: an ElevenLabs voice

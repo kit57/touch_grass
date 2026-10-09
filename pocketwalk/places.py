@@ -12,8 +12,8 @@ from .lang import LANGS
 UA = "pocket-walk-narrator/0.1 (open-source hackathon project)"
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 ]
 OSRM_FOOT_URL = "https://routing.openstreetmap.de/routed-foot/route/v1/foot/"
 
@@ -107,27 +107,31 @@ def _score(tags):
 def find_places(start, radius, lang="en"):
     """Named points of interest within `radius` metres, best first, named in `lang` where the map has it."""
     around = f"(around:{int(radius)},{start['lat']},{start['lon']})"
+    # Searching relations is slow and only big parks need it, so only the park line uses nwr.
     query = f"""[out:json][timeout:40];
 (
-  nwr{around}[tourism~"^(artwork|attraction|viewpoint|museum|gallery)$"][name];
-  nwr{around}[historic][name];
+  nw{around}[tourism~"^(artwork|attraction|viewpoint|museum|gallery)$"][name];
+  nw{around}[historic][name];
   nwr{around}[leisure~"^(park|garden|nature_reserve)$"][name];
-  nwr{around}[natural~"^(tree|spring|water|peak|wood|beach)$"][name];
-  nwr{around}[amenity~"^(fountain|place_of_worship|library|theatre)$"][name];
-  nwr{around}[man_made~"^(bridge|lighthouse|tower|windmill)$"][name];
+  nw{around}[natural~"^(tree|spring|water|peak|wood|beach)$"][name];
+  nw{around}[amenity~"^(fountain|place_of_worship|library|theatre)$"][name];
+  nw{around}[man_made~"^(bridge|lighthouse|tower|windmill)$"][name];
 );
-out center tags 800;"""
-    last_error = None
-    # The public servers are shared and often busy, so go round them twice before giving up.
-    for attempt, url in enumerate(OVERPASS_URLS * 2):
+out center tags 2000;"""
+    errors = []
+    # The public servers are shared and often busy, so go round them three times, waiting a
+    # little longer each round, before giving up.
+    for attempt, url in enumerate(OVERPASS_URLS * 3):
         try:
             elements = get_json(url, data={"data": query}, timeout=70)["elements"]
             break
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
-            last_error = e
-            time.sleep(2 if attempt else 0)
+            errors.append(f"{url.split('/')[2]}: {e}")
+            if (attempt + 1) % len(OVERPASS_URLS) == 0:
+                time.sleep(3 * (attempt + 1) // len(OVERPASS_URLS))
     else:
-        raise RuntimeError(f"OpenStreetMap lookup failed: {last_error}")
+        raise RuntimeError("OpenStreetMap lookup failed. The public map servers are busy; try again in a minute. ("
+                           + "; ".join(errors[-len(OVERPASS_URLS):]) + ")")
 
     places, seen = [], set()
     for el in elements:

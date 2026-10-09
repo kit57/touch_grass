@@ -11,6 +11,7 @@ from . import places, script, voice
 from .lang import LANGS
 
 TEMPLATE = Path(__file__).with_name("player.html")
+MAX_STOPS = 10
 
 
 def slug(text):
@@ -19,17 +20,30 @@ def slug(text):
 
 def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
                voice_name=None, out_root="walks", progress=print, engine="piper", voice_settings=None,
-               lang="en"):
-    """`start` is a dict with lat, lon and optionally label. Returns a summary of what was written."""
+               lang="en", stops_wanted=None):
+    """`start` is a dict with lat, lon and optionally label. Returns a summary of what was written.
+
+    `stops_wanted` is how many stops to aim for; left out, it scales with the length of the walk.
+    The walk can end up with fewer when the time or the neighbourhood doesn't allow that many.
+    """
     L = LANGS[lang]
     if engine == "piper" and not voice_name:
         voice_name = L["piper"]
     # Fail on a missing voice or key now, not after the script has been written.
     speak = voice.make_speaker(engine, voice_name, settings=voice_settings)
 
-    n = max(2, min(8, round(minutes / 8)))
-    budget = max(300, (minutes - n * 1.5 - 1) * places.WALK_SPEED)
-    radius = max(300, min(2000, budget / 2.5))
+    n = max(1, min(MAX_STOPS, int(stops_wanted))) if stops_wanted else max(2, min(8, round(minutes / 8)))
+    asked = n
+
+    def walking_budget(stops):
+        return (minutes - stops * 1.5 - 1) * places.WALK_SPEED
+
+    # Every stop takes listening time out of the walk. If the stops asked for would leave
+    # almost no time to walk between them, plan for as many as the time can hold.
+    while n > 1 and walking_budget(n) < n * 150:
+        n -= 1
+    budget = max(300, walking_budget(n))
+    radius = max(300, min(1200, budget / 2.5))
 
     progress("Looking for places nearby")
     found = places.find_places(start, radius, lang)
@@ -120,7 +134,7 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
     (out / "walk.html").write_text(html, encoding="utf-8")
 
     progress("Done")
-    return {"dir": str(out), "id": out.name, "title": walk["title"], "distance": walk["distance"],
+    return {"dir": str(out), "id": out.name, "stops_wanted": asked if stops_wanted else None, "title": walk["title"], "distance": walk["distance"],
             "stops": [s["name"] for s in stops], "audio_minutes": round(sum(t["seconds"] for t in tracks) / 60, 1)}
 
 

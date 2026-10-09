@@ -31,6 +31,7 @@ def run_job(job_id, params):
                 minutes=max(10, min(120, int(params.get("minutes", 30)))),
                 units="imperial" if params.get("units") == "imperial" else "metric",
                 out_root=WALKS,
+                stops_wanted=int(params["stops"]) if params.get("stops") else None,
                 lang=params["lang"] if params.get("lang") in LANGS else "en",
                 engine="elevenlabs" if params.get("engine") == "elevenlabs" else "piper",
                 voice_name=str(params["voice"]) if params.get("voice") else None,
