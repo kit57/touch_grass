@@ -15,7 +15,7 @@ Built for the Hacktoberfest Open-Source AI Challenge, week 1: *Touch Grass*.
 | --- | --- | --- |
 | Find places and a walking route | OpenStreetMap (Nominatim, Overpass, OSRM) and Wikipedia | Public open-data servers |
 | Write the narration | Gemma 3 4B, an open-weight model, through Ollama | Your computer |
-| Speak it | Piper, an open text-to-speech model (ElevenLabs optional) | Your computer |
+| Speak it | Piper, an open text-to-speech model | Your computer |
 | Play it | One self-contained HTML page with the audio inside | Your phone, no signal needed |
 
 Walking directions are written by plain code from the route data, never by the model, so the
@@ -24,6 +24,9 @@ the Wikipedia intro) and to describe what you can see when there are few.
 
 Each stop is its own track. When a track ends, the player cues up the next one and waits.
 You walk in silence, and press play on your earbuds when you arrive.
+
+Everything the walk needs is open and runs locally. ElevenLabs is offered as an optional
+cloud voice for people who want it; nothing depends on it.
 
 ## Run it
 
@@ -39,6 +42,15 @@ python -m venv .venv
 Open http://localhost:8000, type a starting place, and press **Make my walk**. The first walk
 downloads a 60 MB voice. A 30-minute walk takes about a minute to make on a GTX 1060.
 
+On Windows, `start.ps1` does the last step for you and starts Ollama first:
+
+```
+powershell -ExecutionPolicy Bypass -File .\start.ps1        # add -Lan to reach it from your phone
+```
+
+Settings and keys live in a `.env` file, which git ignores. Copy `.env.example` to `.env` to
+start one. Restart the server after changing `.env` or any Python file.
+
 Or from the terminal:
 
 ```
@@ -47,10 +59,18 @@ Or from the terminal:
 
 Every walk lands in `walks/<date>-<place>/`:
 
-- `walk.html`: the player, with audio, a route sketch and the script embedded
+- `walk.html`: the player, with audio, a route map and the script embedded
 - `00-welcome.mp3`, `01-….mp3`, …: the same tracks for any music app
 - `route.gpx`: the route for a maps app or watch
 - `walk.json`: stops, route and script
+
+## Preview a walk without walking
+
+Open a walk and press **Preview it without walking** under the map. The tracks play back to
+back while a dot follows them round the route: it waits at each stop while the story plays,
+sets off when the directions begin, and reaches the next stop as that stop's track starts.
+It is a way to check or demo a walk from a chair. The dot is driven by the audio, not by GPS;
+the player never reads your location.
 
 ## Get it onto your phone
 
@@ -64,15 +84,36 @@ also just copy the MP3s over.
 - **Another model:** `--model <anything in ollama list>`, or set `POCKETWALK_MODEL`.
 - **Another voice or language:** `--voice de_DE-thorsten-medium` (any
   [Piper voice](https://huggingface.co/rhasspy/piper-voices)).
-- **A cloud voice:** `--voice-engine elevenlabs` (or the Voice menu on the page) records with
-  [ElevenLabs](https://elevenlabs.io) instead. Set `ELEVENLABS_API_KEY` first. It sounds more
-  natural and handles names in other languages, but it sends the script to their servers and
-  uses credits, so Piper stays the default. `python -m pocketwalk voices` lists the voices
-  your key can use; pick one with `--voice <id>` and tune it with `--voice-speed`,
-  `--voice-stability` and `--voice-style`. The page has the same choices as a menu and sliders.
 - **Another tone:** the whole personality of the guide is the `SYSTEM` prompt in
   [pocketwalk/script.py](pocketwalk/script.py).
 - **Miles and feet:** `--units imperial`.
+
+## Optional: an ElevenLabs voice
+
+Piper is the default and needs nothing. If you'd like a more natural voice, or one that
+pronounces names in other languages properly, Pocket Walk can record with
+[ElevenLabs](https://elevenlabs.io) instead. It is a closed cloud service: the script is sent
+to their servers and each walk uses credits (about 5,000 characters for 30 minutes).
+
+1. Create an API key at elevenlabs.io with the **Text to Speech** and **Voices: Read**
+   permissions.
+2. Put it in `.env` as `ELEVENLABS_API_KEY=...` and restart the server.
+3. On the page, set **Voice** to ElevenLabs. A panel opens where you can:
+   - pick any voice on your account, and press **Listen** to hear its sample (free; it plays
+     ElevenLabs' own preview clip)
+   - set **Pace** (0.7 to 1.2), **Steadiness** (lower is more expressive) and **Drama**
+
+   A slider you leave alone keeps that voice's own setting, and your voice choice is
+   remembered.
+
+From the terminal:
+
+```
+.venv\Scripts\python -m pocketwalk voices
+.venv\Scripts\python -m pocketwalk walk "Your start" --voice-engine elevenlabs --voice <id> --voice-speed 1.1 --voice-stability 0.4 --voice-style 0.2
+```
+
+`ELEVENLABS_VOICE=<id>` in `.env` changes the default voice.
 
 ## Troubleshooting
 
@@ -81,6 +122,10 @@ also just copy the MP3s over.
   on Windows run `.\start.ps1`, which starts Ollama on its Vulkan backend instead.
 - **"OpenStreetMap lookup failed":** the public map servers are busy. Try again in a minute.
 - **Few or no stops:** OpenStreetMap has little mapped near you. Try a longer walk.
+- **A new option is missing or greyed out:** the server is still running old code. Stop it
+  with Ctrl+C and start it again.
+- **The ElevenLabs voice list is empty:** the key lacks the Voices: Read permission. Walks
+  still work with the default voice.
 
 ## Honest limits
 
@@ -89,7 +134,9 @@ also just copy the MP3s over.
   on your machine, and the walk itself needs no connection.
 - A 4B model sometimes blurs a detail from its source text. Treat the stories as a friendly
   guide, not a reference.
-- The default voice is English and will mangle names in other languages; pick a matching voice.
+- The default voice is English and will mangle names in other languages; pick a matching
+  Piper voice, or use the ElevenLabs option.
+- The player doesn't know where you are. You tell it you've arrived by pressing play.
 - Directions describe the first few turns of each leg. On a twisty leg, the route sketch in
   the player or the GPX file has the rest.
 
@@ -97,4 +144,4 @@ also just copy the MP3s over.
 
 Map data © OpenStreetMap contributors (ODbL). Place summaries from Wikipedia (CC BY-SA).
 Routing by OSRM on the FOSSGIS server. Gemma by Google, Piper by the Open Home Foundation,
-Ollama, and LAME via `lameenc`.
+Ollama, and LAME via `lameenc`. Optional cloud voice by ElevenLabs.
