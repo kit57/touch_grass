@@ -26,6 +26,10 @@
   input[type=range] { width: 100%; accent-color: var(--accent); }
   output { font-weight: 400; color: var(--dim); }
   fieldset small { color: var(--dim); }
+  button.listen {
+    flex: none; padding: 0 16px; border: 1px solid var(--accent); border-radius: 10px;
+    background: none; color: var(--accent); font-weight: 600; cursor: pointer;
+  }
   button.link { background: none; border: 0; padding: 6px 0; color: var(--accent); cursor: pointer; }
   button.main {
     width: 100%; margin-top: 24px; padding: 16px; border: 0; border-radius: 14px;
@@ -76,7 +80,10 @@
     </select>
     <fieldset id="tuning" hidden>
       <label for="voice">Which voice?</label>
-      <select id="voice"><option value="">Loading your voices…</option></select>
+      <div class="row">
+        <div><select id="voice"><option value="">Loading your voices…</option></select></div>
+        <button type="button" class="listen" id="listen" disabled>Listen</button>
+      </div>
       <label for="speed">Pace <output id="speedOut"></output></label>
       <input type="range" id="speed" min="0.7" max="1.2" step="0.05" value="1">
       <label for="stability">Steadiness <output id="stabilityOut"></output></label>
@@ -144,6 +151,26 @@ $("form").addEventListener("submit", async e => {
 
 const SLIDERS = ["speed", "stability", "style"];
 let voicesLoaded = false;
+const previews = {};
+const sample = new Audio();
+
+// Plays ElevenLabs' own sample of the chosen voice, which costs no credits.
+function stopSample() {
+  sample.pause();
+  $("listen").textContent = "Listen";
+}
+$("listen").addEventListener("click", () => {
+  if (!sample.paused) return stopSample();
+  sample.src = previews[$("voice").value];
+  sample.play().then(() => { $("listen").textContent = "Stop"; })
+    .catch(() => say("Couldn't play that sample.", true));
+});
+sample.addEventListener("ended", stopSample);
+$("voice").addEventListener("change", () => {
+  stopSample();
+  $("listen").disabled = !previews[$("voice").value];
+  try { localStorage.setItem("pocketwalk:voice", $("voice").value); } catch (e) {}
+});
 
 function voiceChoice() {
   if ($("engine").value !== "elevenlabs") return { engine: "piper" };
@@ -172,8 +199,12 @@ $("engine").addEventListener("change", async () => {
       $("voice").replaceChildren(new Option("Default voice", ""));
       return say(r.error, true);
     }
+    let chosen = r.default;
+    try { chosen = localStorage.getItem("pocketwalk:voice") || chosen; } catch (e) {}
+    r.voices.forEach(v => { previews[v.id] = v.preview; });
     $("voice").replaceChildren(...r.voices.map(v =>
-      new Option(v.about ? `${v.name} (${v.about})` : v.name, v.id, false, v.id === r.default)));
+      new Option(v.about ? `${v.name} (${v.about})` : v.name, v.id, false, v.id === chosen)));
+    $("listen").disabled = !previews[$("voice").value];
     voicesLoaded = true;
   } catch (err) {
     say("Couldn't load the voice list.", true);

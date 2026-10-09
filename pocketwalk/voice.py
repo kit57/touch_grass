@@ -68,12 +68,20 @@ def _elevenlabs_key():
 
 
 def elevenlabs_voices():
-    """The voices available to your ElevenLabs account, as a list of {id, name, about}."""
+    """The voices available to your ElevenLabs account, as a list of {id, name, about, preview}.
+
+    `preview` is ElevenLabs' own sample clip for the voice, so listening to it costs no credits.
+    """
     req = urllib.request.Request(ELEVENLABS_API + "voices", headers={"xi-api-key": _elevenlabs_key()})
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             voices = json.load(r)["voices"]
     except urllib.error.HTTPError as e:
+        if "voices_read" in e.read().decode(errors="replace"):
+            raise RuntimeError(
+                "Your ElevenLabs key can speak but isn't allowed to list voices, so the default voice "
+                "will be used. To choose one, turn on the Voices read permission for the key."
+            ) from e
         raise RuntimeError(f"ElevenLabs would not list voices ({e.code}). Check your API key.") from e
     except urllib.error.URLError as e:
         raise RuntimeError("Could not reach ElevenLabs.") from e
@@ -81,7 +89,9 @@ def elevenlabs_voices():
     for v in voices:
         labels = v.get("labels") or {}
         about = ", ".join(labels[k] for k in ("gender", "accent", "descriptive", "description") if labels.get(k))
-        out.append({"id": v["voice_id"], "name": v["name"], "about": about})
+        preview = v.get("preview_url") or ""
+        out.append({"id": v["voice_id"], "name": v["name"], "about": about,
+                    "preview": preview if preview.startswith("https://") else ""})
     return sorted(out, key=lambda v: v["name"].lower())
 
 
