@@ -65,6 +65,11 @@
         </select>
       </div>
     </div>
+    <label for="engine">Voice</label>
+    <select id="engine">
+      <option value="piper">Piper (made on this computer)</option>
+      <option value="elevenlabs">ElevenLabs (cloud, needs an API key)</option>
+    </select>
     <button class="main" id="make">Make my walk</button>
   </form>
   <div id="status" role="status"></div>
@@ -101,7 +106,7 @@ $("form").addEventListener("submit", async e => {
   if (!place && !coords) return say("Type a starting place first.", true);
   $("make").disabled = true;
   say("Starting…");
-  const body = { minutes: +$("minutes").value, units: $("units").value, ...(place ? { place } : coords) };
+  const body = { minutes: +$("minutes").value, units: $("units").value, engine: $("engine").value, ...(place ? { place } : coords) };
   try {
     const res = await fetch("/api/walks", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),

@@ -15,7 +15,7 @@ Built for the Hacktoberfest Open-Source AI Challenge, week 1: *Touch Grass*.
 | --- | --- | --- |
 | Find places and a walking route | OpenStreetMap (Nominatim, Overpass, OSRM) and Wikipedia | Public open-data servers |
 | Write the narration | Gemma 3 4B, an open-weight model, through Ollama | Your computer |
-| Speak it | Piper, an open text-to-speech model | Your computer |
+| Speak it | Piper, an open text-to-speech model (ElevenLabs optional) | Your computer |
 | Play it | One self-contained HTML page with the audio inside | Your phone, no signal needed |
 
 Walking directions are written by plain code from the route data, never by the model, so the
@@ -64,6 +64,10 @@ also just copy the MP3s over.
 - **Another model:** `--model <anything in ollama list>`, or set `POCKETWALK_MODEL`.
 - **Another voice or language:** `--voice de_DE-thorsten-medium` (any
   [Piper voice](https://huggingface.co/rhasspy/piper-voices)).
+- **A cloud voice:** `--voice-engine elevenlabs` (or the Voice menu on the page) records with
+  [ElevenLabs](https://elevenlabs.io) instead. Set `ELEVENLABS_API_KEY` first. It sounds more
+  natural and handles names in other languages, but it sends the script to their servers and
+  uses credits, so Piper stays the default.
 - **Another tone:** the whole personality of the guide is the `SYSTEM` prompt in
   [pocketwalk/script.py](pocketwalk/script.py).
 - **Miles and feet:** `--units imperial`.

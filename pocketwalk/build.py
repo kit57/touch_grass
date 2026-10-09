@@ -18,8 +18,11 @@ def slug(text):
 
 
 def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
-               voice_name=voice.DEFAULT_VOICE, out_root="walks", progress=print):
+               voice_name=None, out_root="walks", progress=print, engine="piper"):
     """`start` is a dict with lat, lon and optionally label. Returns a summary of what was written."""
+    # Fail on a missing voice or key now, not after the script has been written.
+    speak = voice.make_speaker(engine, voice_name)
+
     n = max(2, min(8, round(minutes / 8)))
     budget = max(300, (minutes - n * 1.5 - 1) * places.WALK_SPEED)
     radius = max(300, min(2000, budget / 2.5))
@@ -78,11 +81,10 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
     out = Path(out_root) / f"{stamp}-{slug(area)}-{minutes}min"
     out.mkdir(parents=True, exist_ok=True)
 
-    speaker = voice.load_voice(voice_name)
     audio = []
     for i, track in enumerate(tracks):
         progress(f"Recording track {i + 1} of {len(tracks)}")
-        mp3, seconds = voice.speak(speaker, track["text"])
+        mp3, seconds = speak(track["text"])
         track["file"] = f"{i:02d}-{slug(track['title'])}.mp3"
         track["seconds"] = round(seconds)
         (out / track["file"]).write_bytes(mp3)
@@ -94,7 +96,7 @@ def build_walk(start, minutes=30, units="metric", model=script.DEFAULT_MODEL,
         "minutes": minutes,
         "distance": places.fmt_distance(total, units),
         "model": model,
-        "voice": voice_name,
+        "voice": f"{engine}: {voice_name or 'default'}",
         "start": {"lat": start["lat"], "lon": start["lon"]},
         "stops": [{"name": s["name"], "kind": s["kind"], "lat": s["lat"], "lon": s["lon"]} for s in stops],
         "route": [[round(lon, 5), round(lat, 5)] for lon, lat in coords],

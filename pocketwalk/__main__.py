@@ -24,7 +24,9 @@ def main():
     w.add_argument("--minutes", type=int, default=30)
     w.add_argument("--units", choices=["metric", "imperial"], default="metric")
     w.add_argument("--model", default=script.DEFAULT_MODEL, help="any model you have pulled in Ollama")
-    w.add_argument("--voice", default=voice.DEFAULT_VOICE, help="any Piper voice name")
+    w.add_argument("--voice-engine", choices=voice.ENGINES, default="piper",
+                   help="piper runs on this computer; elevenlabs is a cloud voice")
+    w.add_argument("--voice", help="a Piper voice name or an ElevenLabs voice id")
 
     args = parser.parse_args()
     if args.command == "serve":
@@ -37,7 +39,7 @@ def main():
     else:
         parser.error("give a place name, or --lat and --lon")
     try:
-        result = build_walk(start, args.minutes, args.units, args.model, args.voice)
+        result = build_walk(start, args.minutes, args.units, args.model, args.voice, engine=args.voice_engine)
     except RuntimeError as e:
         sys.exit(str(e))
     print(f"\n{result['title']}: {len(result['stops'])} stops, {result['distance']}, "

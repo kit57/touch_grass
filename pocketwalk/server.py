@@ -30,6 +30,7 @@ def run_job(job_id, params):
                 minutes=max(10, min(120, int(params.get("minutes", 30)))),
                 units="imperial" if params.get("units") == "imperial" else "metric",
                 out_root=WALKS,
+                engine="elevenlabs" if params.get("engine") == "elevenlabs" else "piper",
                 progress=lambda msg: job.update(status=msg),
             )
         job["state"] = "done"
